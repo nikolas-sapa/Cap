@@ -17,57 +17,11 @@ pub fn read_cursor_events(
 }
 
 pub fn rgba_to_rgb(rgba: &[u8]) -> Vec<u8> {
-    let num_pixels = rgba.len() / 4;
-    let mut out = vec![0u8; num_pixels * 3];
-    let mut src = rgba;
-    let mut dst = out.as_mut_slice();
-
-    #[cfg(target_arch = "aarch64")]
-    {
-        use core::arch::aarch64::{uint8x16x3_t, vld4q_u8, vst3q_u8};
-        let blocks = src.len() / 64;
-        if blocks > 0 {
-            unsafe {
-                let mut s_ptr = src.as_ptr();
-                let mut d_ptr = dst.as_mut_ptr();
-                for _ in 0..blocks {
-                    let quad = vld4q_u8(s_ptr);
-                    vst3q_u8(d_ptr, uint8x16x3_t(quad.0, quad.1, quad.2));
-                    s_ptr = s_ptr.add(64);
-                    d_ptr = d_ptr.add(48);
-                }
-            }
-            src = &src[blocks * 64..];
-            dst = &mut dst[blocks * 48..];
-        }
+    let mut rgb = Vec::with_capacity(rgba.len() / 4 * 3);
+    for px in rgba.chunks_exact(4) {
+        rgb.extend_from_slice(&px[..3]);
     }
-
-    while src.len() >= 16 && dst.len() >= 12 {
-        dst[0] = src[0];
-        dst[1] = src[1];
-        dst[2] = src[2];
-        dst[3] = src[4];
-        dst[4] = src[5];
-        dst[5] = src[6];
-        dst[6] = src[8];
-        dst[7] = src[9];
-        dst[8] = src[10];
-        dst[9] = src[12];
-        dst[10] = src[13];
-        dst[11] = src[14];
-        src = &src[16..];
-        dst = &mut dst[12..];
-    }
-
-    while src.len() >= 4 && dst.len() >= 3 {
-        dst[0] = src[0];
-        dst[1] = src[1];
-        dst[2] = src[2];
-        src = &src[4..];
-        dst = &mut dst[3..];
-    }
-
-    out
+    rgb
 }
 
 pub fn flatten_rgba_to_rgb_over_white(rgba: &[u8]) -> Vec<u8> {
