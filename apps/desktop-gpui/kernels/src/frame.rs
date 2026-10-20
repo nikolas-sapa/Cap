@@ -46,15 +46,7 @@ pub fn unpad_rgba_to_bgra(
 }
 
 pub fn swap_red_blue(pixels: &mut [u8]) {
-    let aligned = (pixels.len() / 16) * 16;
-    let (aligned_slice, rem) = pixels.split_at_mut(aligned);
-    for chunk in aligned_slice.chunks_exact_mut(16) {
-        chunk.swap(0, 2);
-        chunk.swap(4, 6);
-        chunk.swap(8, 10);
-        chunk.swap(12, 14);
-    }
-    for pixel in rem.chunks_exact_mut(4) {
+    for pixel in pixels.chunks_exact_mut(4) {
         pixel.swap(0, 2);
     }
 }
