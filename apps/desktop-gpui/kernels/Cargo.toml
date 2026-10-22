@@ -35,6 +35,3 @@ harness = false
 name = "frame_export"
 harness = false
 
-[[bench]]
-name = "rgba_to_rgb"
-harness = false

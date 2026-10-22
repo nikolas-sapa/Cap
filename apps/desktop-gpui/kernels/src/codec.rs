@@ -17,11 +17,9 @@ pub fn read_cursor_events(
 }
 
 pub fn rgba_to_rgb(rgba: &[u8]) -> Vec<u8> {
-    let mut rgb = Vec::with_capacity(rgba.len() / 4 * 3);
-    for px in rgba.chunks_exact(4) {
-        rgb.extend_from_slice(&px[..3]);
-    }
-    rgb
+    rgba.chunks_exact(4)
+        .flat_map(|px| [px[0], px[1], px[2]])
+        .collect()
 }
 
 pub fn flatten_rgba_to_rgb_over_white(rgba: &[u8]) -> Vec<u8> {
