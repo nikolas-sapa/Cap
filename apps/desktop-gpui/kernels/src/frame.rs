@@ -9,16 +9,6 @@ pub fn unpad_rows(data: &[u8], row_bytes: usize, stride: usize, rows: usize) -> 
     Some(tight)
 }
 
-#[inline(always)]
-fn swap_rgba_to_bgra_slice(source: &[u8], target: &mut [u8]) {
-    for (src, dst) in source.chunks_exact(4).zip(target.chunks_exact_mut(4)) {
-        dst[0] = src[2];
-        dst[1] = src[1];
-        dst[2] = src[0];
-        dst[3] = src[3];
-    }
-}
-
 pub fn unpad_rgba_to_bgra(
     data: &[u8],
     width: usize,
@@ -34,13 +24,23 @@ pub fn unpad_rgba_to_bgra(
         return Some(Vec::new());
     }
 
-    let mut tight = vec![0; output_len];
-    for (source, target) in data
-        .chunks_exact(stride)
-        .zip(tight.chunks_exact_mut(row_bytes))
-        .take(rows)
-    {
-        swap_rgba_to_bgra_slice(&source[..row_bytes], target);
+    let mut tight = Vec::with_capacity(output_len);
+    let dest: *mut u8 = tight.as_mut_ptr();
+    // SAFETY: dest is unused spare capacity; every output byte is written before set_len.
+    unsafe {
+        for row in 0..rows {
+            let src = data.as_ptr().add(row * stride);
+            let dst = dest.add(row * row_bytes);
+            for col in 0..width {
+                let s = src.add(col * 4);
+                let d = dst.add(col * 4);
+                *d = *s.add(2);
+                *d.add(1) = *s.add(1);
+                *d.add(2) = *s;
+                *d.add(3) = *s.add(3);
+            }
+        }
+        tight.set_len(output_len);
     }
     Some(tight)
 }
@@ -191,7 +191,7 @@ fn reorder_32bit_row<const R: usize, const G: usize, const B: usize, const A: us
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum Nv12Range {
     Video,
     _Full,
@@ -439,6 +439,33 @@ mod tests {
             convert_nv12_planes(&y_plane_odd, 3, &uv_plane_short, 3, 3, 1, Nv12Range::Video)
                 .is_none()
         );
+    }
+
+    #[test]
+    fn nv12_sweeps_y_cb_cr_ranges_against_ycbcr_to_rgb() {
+        for range in [Nv12Range::Video, Nv12Range::_Full] {
+            for &y in &[0u8, 16, 36, 81, 128, 200, 235, 255] {
+                for cb in (0..=255).step_by(15) {
+                    for cr in (0..=255).step_by(15) {
+                        let y_plane = vec![y, y];
+                        let uv_plane = vec![cb as u8, cr as u8];
+                        let out = convert_nv12_planes(&y_plane, 2, &uv_plane, 2, 2, 1, range)
+                            .expect("conversion should succeed");
+                        let (er, eg, eb) = ycbcr_to_rgb(y, cb as u8, cr as u8, range);
+                        assert_eq!(
+                            &out[0..4],
+                            &[er, eg, eb, 255],
+                            "range={range:?} y={y} cb={cb} cr={cr}"
+                        );
+                        assert_eq!(
+                            &out[4..8],
+                            &[er, eg, eb, 255],
+                            "range={range:?} y={y} cb={cb} cr={cr}"
+                        );
+                    }
+                }
+            }
+        }
     }
 
     #[test]
